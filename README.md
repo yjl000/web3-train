@@ -1,2 +1,10 @@
 # web3-train
-Completed a Web3 enterprise-level project exercise independently within 3 months
+## web3项目练习 ##
+
+### 运行项目 ###
+```shell
+$cd peoject name
+forge init --force
+forge test
+forge build
+```
