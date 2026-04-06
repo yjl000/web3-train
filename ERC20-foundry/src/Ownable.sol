@@ -8,6 +8,7 @@ contract Ownable {
         _owner = msg.sender;
     }
 
+    // The onlyOwner modifier restricts access to certain functions to only the owner of the contract. It checks if the caller of the function is the owner and reverts if it is not.
     modifier onlyOwner() {
         require(msg.sender == _owner, "Ownable: caller is not the owner");
         _;
@@ -17,6 +18,7 @@ contract Ownable {
         // Implementation for the special thing that only the owner can do
     }
 
+    // Transfers ownership of the contract to a new owner.将权限给newowner
     function transferOwnership(address _newOwner) public onlyOwner {
         require(
             _newOwner != address(0),

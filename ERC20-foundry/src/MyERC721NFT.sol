@@ -16,6 +16,7 @@ contract MyERC721NFT is ERC721, Ownable {
         _mint(to, tokenId);
     }
 
+    // Returns the URI for a given token ID.
     function tokenURI(
         uint256 tokenId
     ) public view override returns (string memory) {
