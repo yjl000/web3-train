@@ -7,6 +7,7 @@ import { TransactionOutlined, HomeOutlined, CreditCardOutlined, CloseOutlined, M
 import type { MenuProps } from 'antd';
 import { Menu } from 'antd';
 import Image from 'next/image';
+import WalletConnect from './walletConnect';
 
 
 type MenuItem = Required<MenuProps>['items'][number];
@@ -57,7 +58,7 @@ export default function Nav() {
           </div>
 
           {/* 桌面端菜单 - 隐藏在移动端 */}
-          <div className="hidden md:block w-full">
+          <div className="hidden md:block w-full flex items-center justify-end">
             <Menu
               onClick={onClick}
               selectedKeys={[pathname ?? '/']}
@@ -65,6 +66,11 @@ export default function Nav() {
               items={items}
               className="border-none justify-start"
             />
+          </div>
+
+          {/* 钱包连接按钮 */}
+          <div className="flex-shrink-0 flex items-center">
+             <WalletConnect />
           </div>
 
           {/* 移动端汉堡按钮 - 只在移动端显示 */}
