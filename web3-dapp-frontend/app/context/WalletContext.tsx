@@ -139,8 +139,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setAddress(getAddress(accounts[0].address));
       setChainId(parseInt(chainIdHex as string, 16));
       setIsConnected(true);
-    } catch (err) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
       console.error('连接失败', err);
+      if (err.code === 4001) {
+        alert('您拒绝了钱包授权');
+      } else {
+        alert('钱包连接失败，请检查网络后重试');
+      }
     }
   };
 
