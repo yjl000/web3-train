@@ -1,8 +1,10 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { BrowserProvider, getAddress } from 'ethers';
-
+import { BrowserProvider, getAddress, Contract } from 'ethers';
+import { message } from 'antd';
+import { LOCAL_CHAIN_ID, MY_TOKEN_ADDRESS, MY_TOKEN_ABI } from "../contract/MyTokenABI";
+const anvilChainId = LOCAL_CHAIN_ID; // 31337 的十六进制表示
 // EIP-1193 标准类型定义（完全对齐官方）
 declare global {
   interface RequestArguments {
@@ -31,8 +33,15 @@ type WalletContextType = {
   address: string | null;
   chainId: number | null;
   isConnected: boolean;
-  connectWallet: () => Promise<void>;
+  balance: string | null;
+  tokenSymbol: string | null;
+  tokenName: string | null;
+  tokenDecimals: number | null;
+  tokenSupply: string | null;
+  connectWallet: () => Promise<boolean | undefined>;
   disconnectWallet: () => Promise<void>;
+  getBalance: (_address: string) => Promise<void>;
+  switchChain: (chainId: number | string) => Promise<void | undefined>;
 };
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -41,6 +50,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [balance, setBalance] = useState<string | null>(null);
+  const [tokenSymbol, setTokenSymbol] = useState<string | null>(null);
+  const [tokenName, setTokenName] = useState<string | null>(null);
+  const [tokenDecimals, setTokenDecimals] = useState<number | null>(null);
+  const [tokenSupply, setTokenSupply] = useState<string | null>(null);
 
   // 🔑 完全对齐官方 chainChanged 回调（接收 chainId: string）
   const handleChainChanged = (chainIdHex: string) => {
@@ -48,6 +62,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // 按官方要求：十六进制字符串转数字
     const chainIdNum = parseInt(chainIdHex, 16);
     setChainId(chainIdNum);
+  };
+
+  const getTokenInfo = async (contract: Contract) => {
+    console.warn('11111', await contract.totalSupply())
+    try {
+      const name = await contract.name();
+      const symbol = await contract.symbol();
+      const decimals = await contract.decimals();
+      const supply = await contract.totalSupply();
+      console.log('获取到的 token info：', { name, symbol, decimals, supply: supply.toString() });
+      setTokenName(name);
+      setTokenSymbol(symbol);
+      setTokenDecimals(decimals);
+      setTokenSupply(supply.toString());
+    } catch (error) {
+      console.error('Error fetching token info:', error);
+    }
   };
 
   // 获取当前链 ID 的辅助函数（官方 eth_chainId）
@@ -127,25 +158,47 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (isConnected && address) {
+      getBalance(address);
+    }
+  }, [address, isConnected]);
+
+  useEffect(() => {
+    if (isConnected && window.ethereum) {
+      const provider = new BrowserProvider(window.ethereum);
+      const contract = new Contract(MY_TOKEN_ADDRESS, MY_TOKEN_ABI, provider);
+      console.log('获取 token info，当前合约实例：', contract);
+      getTokenInfo(contract);
+    }
+  }, [isConnected]);
+
   // 连接钱包
   const connectWallet = async () => {
-    if (!window.ethereum) return alert('请安装 MetaMask');
+    if (!window.ethereum) return message.error('请安装 MetaMask');
     try {
       const provider = new BrowserProvider(window.ethereum);
       await provider.send('eth_requestAccounts', []);
+      const singer = await provider.getSigner();
+      const contract = new Contract(MY_TOKEN_ADDRESS, MY_TOKEN_ABI, singer);
       const accounts = await provider.listAccounts();
       const chainIdHex = await provider.send('eth_chainId', []);
 
       setAddress(getAddress(accounts[0].address));
       setChainId(parseInt(chainIdHex as string, 16));
       setIsConnected(true);
+      setBalance((await contract.balanceOf(accounts[0].address)).toString());
+      setTokenName(await contract.name());
+      setTokenSymbol(await contract.symbol());
+      setTokenDecimals(await contract.decimals());
+      setTokenSupply((await contract.totalSupply()).toString());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('连接失败', err);
       if (err.code === 4001) {
-        alert('您拒绝了钱包授权');
+        message.error('您拒绝了钱包授权')
       } else {
-        alert('钱包连接失败，请检查网络后重试');
+        message.error('钱包连接失败，请检查网络后重试');
       }
     }
   };
@@ -169,9 +222,54 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const switchChain = async (chainId: number | string) => {
+    if (!window.ethereum) {
+      message.error('请安装 MetaMask');
+      return;
+    }
+    const ethereum = window.ethereum;
+    const currentChainId = await ethereum.request({ method: 'eth_chainId' });
+    if (currentChainId !== anvilChainId) {
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: anvilChainId }]
+      });
+    }
+    await ethereum.request({
+      method: "eth_requestAccounts",
+      params: []
+    });
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+    console.log(accounts);
+  }
+
+  const getBalance = async (_address: string) => {
+    if (!window.ethereum || !_address) return;
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const balance = await provider.getBalance(_address);
+      setBalance(balance.toString());
+    } catch (err) {
+      console.error('获取余额失败', err);
+    }
+  }
+
   return (
     <WalletContext.Provider
-      value={{ address, chainId, isConnected, connectWallet, disconnectWallet }}
+      value={{
+        address, 
+        chainId,
+        isConnected,
+        balance,
+        tokenSymbol,
+        tokenName,
+        tokenDecimals,
+        tokenSupply,
+        connectWallet,
+        disconnectWallet,
+        getBalance,
+        switchChain 
+      }}
     >
       {children}
     </WalletContext.Provider>
@@ -185,8 +283,15 @@ export function useWallet() {
       address: null,
       chainId: null,
       isConnected: false,
-      connectWallet: async () => {},
+      balance: null,
+      tokenSymbol: null,
+      tokenName: null,
+      tokenDecimals: null,
+      tokenSupply: null,
+      connectWallet: async () => undefined,
       disconnectWallet: async () => {},
+      getBalance: async () => {},
+      switchChain: async (chainId: number | string) => {},
     };
   }
   return ctx;

@@ -1,12 +1,19 @@
 'use client';
 import { useWallet } from '../context/WalletContext';
 import { Button } from 'antd';
+import { LOCAL_CHAIN_ID } from "../contract/MyTokenABI";
+const anvilChainId = LOCAL_CHAIN_ID; 
 
 export default function WalletConnect() {
-  const { isConnected, address, connectWallet, disconnectWallet } = useWallet();
+  const { isConnected, address, chainId, connectWallet, disconnectWallet, switchChain } = useWallet();
 
   return (
     <div className="flex items-center gap-3">
+      <div>
+        <Button disabled={!!(isConnected || !address || (chainId && chainId === anvilChainId))} color="pink" variant="outlined" onClick={() => switchChain(anvilChainId) }>
+          Switch Anvil
+        </Button>
+      </div>
       {!isConnected ? (
         <Button color="pink" variant="outlined" onClick={connectWallet}>
           连接钱包
