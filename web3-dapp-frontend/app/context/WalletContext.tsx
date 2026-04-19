@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { BrowserProvider, getAddress, Contract } from 'ethers';
+import { BrowserProvider, getAddress, Contract, formatEther } from 'ethers';
 import { message } from 'antd';
 import { LOCAL_CHAIN_ID, MY_TOKEN_ADDRESS, MY_TOKEN_ABI } from "../contract/MyTokenABI";
 const anvilChainId = LOCAL_CHAIN_ID; // 31337 的十六进制表示
@@ -38,6 +38,7 @@ type WalletContextType = {
   tokenName: string | null;
   tokenDecimals: number | null;
   tokenSupply: string | null;
+  tokenBalance: string | null;
   connectWallet: () => Promise<boolean | undefined>;
   disconnectWallet: () => Promise<void>;
   getBalance: (_address: string) => Promise<void>;
@@ -55,6 +56,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [tokenName, setTokenName] = useState<string | null>(null);
   const [tokenDecimals, setTokenDecimals] = useState<number | null>(null);
   const [tokenSupply, setTokenSupply] = useState<string | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<string | null>(null);
 
   // 🔑 完全对齐官方 chainChanged 回调（接收 chainId: string）
   const handleChainChanged = (chainIdHex: string) => {
@@ -65,17 +67,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   };
 
   const getTokenInfo = async (contract: Contract) => {
-    console.warn('11111', await contract.totalSupply())
+    if (chainId !== LOCAL_CHAIN_ID) {
+      message.error('请切换到 Anvil 本地链（Chain ID: 31337）');
+      return;
+    }
+    const supply = await contract.totalSupply();
+    console.warn('11111', supply)
     try {
       const name = await contract.name();
       const symbol = await contract.symbol();
       const decimals = await contract.decimals();
       const supply = await contract.totalSupply();
-      console.log('获取到的 token info：', { name, symbol, decimals, supply: supply.toString() });
+      const balance = MY_TOKEN_ADDRESS ? await contract.balanceOf(MY_TOKEN_ADDRESS) : null;
+      console.log('获取到的 token info：', { name, symbol, decimals, supply: supply.toString(), balance: balance?.toString() });
       setTokenName(name);
       setTokenSymbol(symbol);
       setTokenDecimals(decimals);
       setTokenSupply(supply.toString());
+      setTokenBalance(balance ? balance.toString() : null);
     } catch (error) {
       console.error('Error fetching token info:', error);
     }
@@ -159,6 +168,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    console.warn('getBalance===', isConnected, address)
     if (isConnected && address) {
       getBalance(address);
     }
@@ -192,6 +202,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setTokenSymbol(await contract.symbol());
       setTokenDecimals(await contract.decimals());
       setTokenSupply((await contract.totalSupply()).toString());
+      setTokenBalance((await contract.balanceOf(MY_TOKEN_ADDRESS)).toString());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('连接失败', err);
@@ -245,9 +256,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const getBalance = async (_address: string) => {
     if (!window.ethereum || !_address) return;
-    try {
       const provider = new BrowserProvider(window.ethereum);
-      const balance = await provider.getBalance(_address);
+    try {
+      const balance = await provider.getBalance(_address)
+      console.log(formatEther(balance))
+      console.warn('获取地址余额22222', _address, balance);
       setBalance(balance.toString());
     } catch (err) {
       console.error('获取余额失败', err);
@@ -265,6 +278,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         tokenName,
         tokenDecimals,
         tokenSupply,
+        tokenBalance,
         connectWallet,
         disconnectWallet,
         getBalance,
@@ -288,6 +302,7 @@ export function useWallet() {
       tokenName: null,
       tokenDecimals: null,
       tokenSupply: null,
+      tokenBalance: null,
       connectWallet: async () => undefined,
       disconnectWallet: async () => {},
       getBalance: async () => {},
