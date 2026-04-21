@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { BrowserProvider, getAddress, Contract, formatEther } from 'ethers';
+import { BrowserProvider, getAddress, Contract, parseEther } from 'ethers';
 import { message } from 'antd';
 import { LOCAL_CHAIN_ID, MY_TOKEN_ADDRESS, MY_TOKEN_ABI } from "../contract/MyTokenABI";
 const anvilChainId = LOCAL_CHAIN_ID; // 31337 的十六进制表示
@@ -43,6 +43,7 @@ type WalletContextType = {
   disconnectWallet: () => Promise<void>;
   getBalance: (_address: string) => Promise<void>;
   switchChain: (chainId: number | string) => Promise<void | undefined>;
+  transfer: (to: string, amount: string) => Promise<void>;
 };
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -239,11 +240,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
     const ethereum = window.ethereum;
-    const currentChainId = await ethereum.request({ method: 'eth_chainId' });
-    if (currentChainId !== anvilChainId) {
+    // 保证传给 wallet_switchEthereumChain 的 chainId 是 0x 前缀的十六进制字符串
+    const targetChainIdHex = typeof chainId === 'number' ? `0x${chainId.toString(16)}` : String(chainId);
+    // 获取当前链（EIP-1193 返回的是 0x 前缀的十六进制字符串）
+    const currentChainIdHex = await ethereum.request({ method: 'eth_chainId' }) as string;
+    // 仅在当前链和目标链不一致时发起切换
+    if (currentChainIdHex !== targetChainIdHex) {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: anvilChainId }]
+        params: [{ chainId: targetChainIdHex }]
       });
     }
     await ethereum.request({
@@ -258,12 +263,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (!window.ethereum || !_address) return;
       const provider = new BrowserProvider(window.ethereum);
     try {
-      const balance = await provider.getBalance(_address)
-      console.log(formatEther(balance))
+      await provider.send('eth_requestAccounts', []);
+      const singer = await provider.getSigner();
+      const contract = new Contract(MY_TOKEN_ADDRESS, MY_TOKEN_ABI, singer);
+      const balance = _address ? (await contract.balanceOf(_address)).toString() : null;
+
+      // const balance = await provider.getBalance(_address)
+      // console.log(formatEther(balance))
       console.warn('获取地址余额22222', _address, balance);
-      setBalance(balance.toString());
+      setBalance(balance);
     } catch (err) {
       console.error('获取余额失败', err);
+    }
+  }
+
+  const transfer = async (to: string, amount: string) => {
+    if (!window.ethereum) {
+      message.error('请安装 MetaMask');
+      return;
+    }
+    const provider = new BrowserProvider(window.ethereum)
+    await provider.send('eth_requestAccounts', [])
+    const signer = await provider.getSigner()
+    const contract = new Contract(MY_TOKEN_ADDRESS, MY_TOKEN_ABI, signer)
+    try {
+      console.log('发起转账，参数：', { to, amount });
+      const transactionResponse = await contract.transfer(to, parseEther(amount))
+      console.log('转账交易已发送，等待确认...', transactionResponse);
+      await transactionResponse.wait(1)
+      console.log('转账交易已确认！');
+      getBalance(to)
+      getTokenInfo(contract)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      if (error.code === 4001) {
+        message.error('用户拒绝了签名')
+        return
+      }
+      message.error('转账失败，请检查输入和网络');
+      console.log(error)
     }
   }
 
@@ -282,7 +320,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connectWallet,
         disconnectWallet,
         getBalance,
-        switchChain 
+        switchChain,
+        transfer,
       }}
     >
       {children}
@@ -307,6 +346,7 @@ export function useWallet() {
       disconnectWallet: async () => {},
       getBalance: async () => {},
       switchChain: async (chainId: number | string) => {},
+      transfer: async (to: string, amount: string) => {},
     };
   }
   return ctx;
