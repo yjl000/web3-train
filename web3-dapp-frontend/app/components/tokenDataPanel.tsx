@@ -10,7 +10,7 @@ export default function TokenDataPanel(
       <div className="w-full max-w-md p-6">
         <h2 className="text-2xl font-bold mb-4">Token Data Panel</h2>
         <div className="flex flex-col">
-          <span className='text-sm'>token address:{MY_TOKEN_ADDRESS}</span>
+          <span className='text-sm'>Contract address:{MY_TOKEN_ADDRESS}</span>
           <span className="mb-2">Token name: {tokenName}</span>
           <span className="mb-2">Token symbol: {tokenSymbol}</span>
           <span className="mb-2">Token decimals: {tokenDecimals}</span>

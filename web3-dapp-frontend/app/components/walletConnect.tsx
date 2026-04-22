@@ -37,7 +37,7 @@ export default function WalletConnect() {
       ) : (
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700">
-            {address?.slice(0, 6)}...{address?.slice(-4)}
+            已连接：{address?.slice(0, 6)}...{address?.slice(-4)}
           </span>
           <Button size="small" danger onClick={disconnectWallet}>
             断开

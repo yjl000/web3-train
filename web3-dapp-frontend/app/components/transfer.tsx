@@ -7,12 +7,13 @@ import { useWallet } from '../context/WalletContext';
 
 
 export default function Transfer() {
-  const { isConnected, chainId, tokenSymbol, tokenName, tokenDecimals, tokenSupply, balance, address, tokenBalance, transfer } = useWallet();
+  const { isConnected, chainId, getBalance, tokenName, tokenDecimals, tokenSupply, balance, address, tokenBalance, transfer } = useWallet();
   const userBalance = balance ? formatUnits(balance, tokenDecimals || 18) : '0';
   const [position, setPosition] = useState<'start' | 'end'>('end');
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [toAddress, setToAddress] = useState('');
+  const [targetBalance, setTargetBalance] = useState<string | null>(null);
 
   const tokenTransfer = () => {
     if (!amount) {
@@ -28,11 +29,17 @@ export default function Transfer() {
       return
     }
     setLoading(true);
-    transfer(toAddress, amount.toString()).then(() => {
+    transfer(toAddress, amount.toString()).then(async () => {
       message.success('Transfer successful');
+      const bal = await getBalance(toAddress) as unknown as string | null;
+      if (bal === null) {
+        setTargetBalance(null);
+      } else {
+        setTargetBalance(formatUnits(bal, tokenDecimals || 18));
+      }
     }).catch((err) => {
-      console.error(err);
-      message.error('Transfer failed');
+      console.log(err);
+      // message.error('Transfer failed');
     }).finally(() => {
       setLoading(false);
     });
@@ -41,6 +48,14 @@ export default function Transfer() {
   return (
     <div className="flex items-center justify-center rounded-lg min-w-lg min-h-full bg-cyan-500 shadow-lg shadow-cyan-500/50">
       <div className="w-full max-w-md p-6">
+        <div className="flex flex-col">
+          <span>from address: {address}</span>
+          <span>Balance: {userBalance}</span>
+        </div>
+        <div className="flex flex-col">
+          <span>to address: {toAddress}</span>
+          <span>target Balance: {targetBalance}</span>
+        </div>
         <div>
           <span>to address</span>
           <Input placeholder="input to address" value={toAddress} onChange={(e) => setToAddress(e.target.value)} size="large" className="mb-4" />

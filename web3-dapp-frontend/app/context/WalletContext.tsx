@@ -65,6 +65,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // 按官方要求：十六进制字符串转数字
     const chainIdNum = parseInt(chainIdHex, 16);
     setChainId(chainIdNum);
+    window.location.reload(); // 官方建议链变更后刷新页面
   };
 
   const getTokenInfo = async (contract: Contract) => {
@@ -111,6 +112,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setChainId(null);
       setIsConnected(false);
     }
+    window.location.reload(); // 官方建议账户变更后刷新页面
   };
 
   // 初始化：检查已连接状态
@@ -169,10 +171,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    console.warn('getBalance===', isConnected, address)
-    if (isConnected && address) {
-      getBalance(address);
-    }
+    const fetchBalance = async () => {
+      console.warn('getBalance===', isConnected, address);
+      if (isConnected && address) {
+        setBalance(await getBalance(address));
+      }
+    };
+    fetchBalance();
   }, [address, isConnected]);
 
   useEffect(() => {
@@ -267,11 +272,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const singer = await provider.getSigner();
       const contract = new Contract(MY_TOKEN_ADDRESS, MY_TOKEN_ABI, singer);
       const balance = _address ? (await contract.balanceOf(_address)).toString() : null;
-
+      // setBalance(balance)
+      return balance;
       // const balance = await provider.getBalance(_address)
       // console.log(formatEther(balance))
-      console.warn('获取地址余额22222', _address, balance);
-      setBalance(balance);
+      // console.warn('获取地址余额22222', _address, balance);
+      // setBalance(balance);
     } catch (err) {
       console.error('获取余额失败', err);
     }
@@ -292,16 +298,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       console.log('转账交易已发送，等待确认...', transactionResponse);
       await transactionResponse.wait(1)
       console.log('转账交易已确认！');
-      getBalance(to)
+      setBalance(await getBalance(address || ''));
       getTokenInfo(contract)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       if (error.code === 4001) {
         message.error('用户拒绝了签名')
-        return
       }
       message.error('转账失败，请检查输入和网络');
-      console.log(error)
+      return Promise.reject(error); // 返回reject,让调用的地方进入 catch
     }
   }
 
